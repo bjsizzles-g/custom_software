@@ -1,3 +1,4 @@
+
 ---
 - name: Download and Install RPM from Artifactory
   hosts: localhost
@@ -9,6 +10,11 @@
     rpm_install_dir: "/tmp"
     rpm_file_path: "{{ rpm_install_dir }}/{{ rpm_name }}"
   tasks:
+    - name: Check if Artifactory URL is valid
+      fail:
+        msg: "Artifactory URL should not contain 'dev'."
+      when: artifactory_url.find('dev') != -1
+
     - name: Check if RPM exists
       uri:
         url: "{{ artifactory_url }}/path/to/{{ rpm_name }}"
