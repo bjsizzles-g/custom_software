@@ -1,5 +1,5 @@
 ---
-- name: Check if RPM exists in Artifactory
+- name: Download and Install RPM from Artifactory
   hosts: localhost
   vars:
     artifactory_url: "https://your-artifactory-url.com"
@@ -28,7 +28,6 @@
         password: "{{ artifactory_password }}"
         dest: "{{ rpm_file_path }}"
         force_basic_auth: yes
-      register: download_result
       async: 600
       poll: 0
 
@@ -39,6 +38,7 @@
       until: job_result.finished
       retries: 30
       delay: 10
+      when: rpm_exists.status == 200
 
     - name: Install RPM
       yum:
@@ -47,13 +47,19 @@
       register: install_result
       when: rpm_exists.status == 200
 
-    - name: Delete RPM file
-      file:
-        path: "{{ rpm_file_path }}"
-        state: absent
+    - name: Assert RPM is installed
+      command: rpm -q your-package-name
+      register: rpm_check_result
+      ignore_errors: yes
+      changed_when: false
       when: rpm_exists.status == 200
 
     - name: Display installation result
       debug:
         msg: "RPM installation status: {{ install_result }}"
+      when: rpm_exists.status == 200
+
+    - name: Display RPM installation check result
+      debug:
+        msg: "RPM installation check: {{ rpm_check_result }}"
       when: rpm_exists.status == 200
