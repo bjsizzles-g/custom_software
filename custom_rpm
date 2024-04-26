@@ -1,0 +1,59 @@
+---
+- name: Check if RPM exists in Artifactory
+  hosts: localhost
+  vars:
+    artifactory_url: "https://your-artifactory-url.com"
+    artifactory_username: "your_username"
+    artifactory_password: "your_password"
+    rpm_name: "your-rpm-name.rpm"
+    rpm_install_dir: "/tmp"
+    rpm_file_path: "{{ rpm_install_dir }}/{{ rpm_name }}"
+  tasks:
+    - name: Check if RPM exists
+      uri:
+        url: "{{ artifactory_url }}/path/to/{{ rpm_name }}"
+        method: HEAD
+        user: "{{ artifactory_username }}"
+        password: "{{ artifactory_password }}"
+        force_basic_auth: yes
+      register: rpm_exists
+      failed_when: false
+
+    - name: Download RPM if it exists
+      when: rpm_exists.status == 200
+      uri:
+        url: "{{ artifactory_url }}/path/to/{{ rpm_name }}"
+        method: GET
+        user: "{{ artifactory_username }}"
+        password: "{{ artifactory_password }}"
+        dest: "{{ rpm_file_path }}"
+        force_basic_auth: yes
+      register: download_result
+      async: 600
+      poll: 0
+
+    - name: Wait for download to finish
+      async_status:
+        jid: "{{ download_result.json.job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 30
+      delay: 10
+
+    - name: Install RPM
+      yum:
+        name: "{{ rpm_file_path }}"
+        state: present
+      register: install_result
+      when: rpm_exists.status == 200
+
+    - name: Delete RPM file
+      file:
+        path: "{{ rpm_file_path }}"
+        state: absent
+      when: rpm_exists.status == 200
+
+    - name: Display installation result
+      debug:
+        msg: "RPM installation status: {{ install_result }}"
+      when: rpm_exists.status == 200
